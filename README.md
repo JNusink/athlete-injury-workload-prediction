@@ -1,54 +1,58 @@
-## Workload Monitoring & Injury Risk Prediction
+## Session-Level Multimodal Risk Prediction
 
-**Goal**: Use daily game workload and hip mobility trends to compute Acute:Chronic Workload Ratio (ACWR) and predict whether an injury occurs in the next 7 days.
+**Objective**  
+Predict immediate injury risk for a single training session using physiological, biomechanical, and contextual sensor data.
 
-### Data Processing & Features
-- **Source**: `mergedData.csv` (~43,800 rows, ~30 athletes, 2016–2018)
-- **Key features engineered**:
-  - Acute load (7-day rolling mean)
-  - Chronic load (28-day rolling mean)
-  - ACWR = acute / chronic
-  - ACWR spikes (>1.5 and >2.0)
-  - Hip mobility trends (7d/28d mean, % change)
-  - Target: `injury_in_next_7d` (1 if any injury in following 7 days)
+### Data & Features
+- **Source**: `sports_multimodal_data.csv` (5,430 anonymous sessions)  
+- **Target**: `injury_risk` (binary, ~5% positive)  
+- **Features** (31 original + 2 engineered):  
+  - Physiological: heart_rate, emg_amplitude, fatigue_index, etc.  
+  - Biomechanical: impact_force, ground_reaction_force, speed, acc_rms, etc.  
+  - Context: training_duration, previous_injury_history, workload_intensity, rest_period  
+  - Engineered: impact_per_speed, fatigue_load_interaction  
+- Processing: z-score standardization, clipping negative impact_force, no missing values.
 
-Processed dataset saved: `data/processed/athlete_workload_features.csv` (21,900 rows).
-
-**Insight**: ACWR is significantly higher before injury periods  
-- Mean ACWR (risk periods): **1.74**  
-- Mean ACWR (safe periods): **0.91**  
+**Insight**: Strong separation between risk and safe sessions in key stress indicators.
 
 ### Visualizations
+Risk balance, feature boxplots by risk level, correlation heatmap.
 
-#### Athlete Timelines (examples)
-Daily workload (blue bars), ACWR (orange line), injury days (red X markers), high-risk thresholds (red dashed lines).
+![Injury Risk Balance](figures/injury_risk_balance.png)  
+![Impact Force by Risk](figures/impact_force_by_risk.png)  
+![Correlation Heatmap](figures/correlation_heatmap.png)
 
-![Athlete 1 Timeline](figures/athlete_1_timeline.png)
-![Athlete 2 Timeline](figures/athlete_2_timeline.png)
-
-#### ACWR Distribution: Risk vs Safe Periods
-Higher ACWR values clearly cluster before injury windows.
-
-![ACWR Risk Boxplot](figures/acwr_risk_boxplot.png)
-
-### Predictive Model (XGBoost)
-**Model**: XGBoost classifier (chronological 80/20 train/test split, imbalance-weighted)
+### XGBoost Predictive Model
+**Setup**: Stratified 80/20 split, imbalance-weighted, depth 5, 150 estimators.
 
 **Performance** (test set):
-- ROC-AUC: **0.7917** (strong discrimination)
-- At threshold 0.5:
-  - Recall (positives): **0.65** → detects 65% of high-risk periods
-  - Precision (positives): 0.13 → many false alarms (acceptable for prevention)
-- Optimal threshold for max F1: **0.772** (F1 = 0.2828)
 
-**Top predictors** (feature importance):
-1. Acute load (7-day) → 0.506 (recent workload dominates risk)
-2. Chronic load (28-day) → 0.115
-3. ACWR → 0.089
-4–7. Hip mobility trends (means & % change) provide supporting signal
+| Metric                        | Value     | Interpretation                              |
+|-------------------------------|-----------|---------------------------------------------|
+| ROC-AUC                       | **1.0000** | Near-perfect discrimination                 |
+| Recall @ 0.5 (positives)      | **1.00**  | Detects 100% of high-risk sessions          |
+| Precision @ 0.5 (positives)   | **0.98**  | Very few false positives                    |
+| F1-score @ 0.5 (positives)    | **0.99**  | Outstanding balance                         |
 
-![Feature Importance](figures/feature_importance.png)
+**Top SHAP Features** (global importance)
 
-**Interpretation**: Acute load spikes are the strongest signal of impending injury — consistent with sports science literature on workload-injury relationships. The model could alert coaches to reduce training when ACWR > 1.5–1.7.
+1. emg_amplitude (muscle activation)  
+2. heart_rate  
+3. ground_reaction_force  
+4. fatigue_index  
+5. previous_injury_history  
 
-**Limitations**: Small number of athletes (~30), imbalanced classes, no external validation set. Future work: larger cohorts, cross-validation, hyperparameter tuning.
+![SHAP Summary](figures/shap_summary.png)
+
+**Interpretation**  
+EMG amplitude, heart rate, and ground reaction force dominate risk prediction — direct markers of neuromuscular and impact stress. The near-perfect performance indicates strong signals in this dataset, making it ideal for real-time session alerts.
+
+**Potential Real-World Impact**  
+Enables a "today's session risk score" — e.g., flag high-risk drills and suggest adjustments. Reducing acute injuries (strains, sprains, impacts) could avoid significant medical and performance costs (ASPE fracture charges $3,400–$7,600; many injuries also cause lost training days).
+
+**Limitations & Future Work**  
+- Near-perfect metrics suggest synthetic/highly separable data — expect lower real-world performance.  
+- No athlete IDs → no personalization.  
+- Future: dependence plots, integration with workload history, real athlete validation.
+
+This component forms the micro (per-session) layer of the injury-risk co-pilot.
