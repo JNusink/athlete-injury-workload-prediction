@@ -3,13 +3,18 @@ import pandas as pd
 import xgboost as xgb
 from sklearn.metrics import roc_auc_score, classification_report
 from sklearn.model_selection import train_test_split
-import matplotlib.pyplot as plt 
+import matplotlib.pyplot as plt
 from pathlib import Path
+import json
 
 def train_collegiate_model(
     data_path: str = "data/processed/collegiate_processed.csv",
     fig_dir: str = "figures"
 ):
+    """
+    Train a baseline injury risk model using collegiate athlete
+    demographic and training profile data.
+    """
     df = pd.read_csv(data_path)
     target = 'Injury_Indicator'
     features = [col for col in df.columns if col != target]
@@ -18,15 +23,20 @@ def train_collegiate_model(
     y = df[target]
 
     # Stratified split (70/30 for small data)
-    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.3, stratify=y, random_state=42)
+    X_train, X_test, y_train, y_test = train_test_split(
+        X, y, test_size=0.3, stratify=y, random_state=42
+    )
 
     print(f"Train: {X_train.shape}, positive rate {y_train.mean():.4f}")
     print(f"Test: {X_test.shape}, positive rate {y_test.mean():.4f}")
 
+    pos = y_train.sum()
+    scale_pos_weight = (len(y_train) - pos) / pos if pos > 0 else 1
+
     model = xgb.XGBClassifier(
         eval_metric='auc',
         random_state=42,
-        scale_pos_weight = (len(y_train) - y_train.sum()) / y_train.sum() if y_train.sum() > 0 else 1,
+        scale_pos_weight=scale_pos_weight,
         max_depth=3,
         learning_rate=0.1,
         n_estimators=100
@@ -50,6 +60,7 @@ def train_collegiate_model(
     print("\nFeature Importance:\n", importance.head(10))
 
     # Save importance plot
+    Path(fig_dir).mkdir(exist_ok=True)
     plt.figure(figsize=(10, 6))
     importance.head(10).plot(kind='barh', x='feature', y='importance', color='lightgreen')
     plt.title('Top Feature Importances (XGBoost)')
@@ -60,8 +71,18 @@ def train_collegiate_model(
     plt.close()
     print(f"Importance plot saved: {plot_path}")
 
-    return model, auc, importance
+    # Save metrics
+    metrics = {
+        "roc_auc": float(auc),
+        "test_positive_rate": float(y_test.mean())
+    }
+    Path("results").mkdir(exist_ok=True)
+    metrics_path = Path("results") / "collegiate_metrics.json"
+    with open(metrics_path, "w") as f:
+        json.dump(metrics, f, indent=2)
+    print(f"Metrics saved: {metrics_path}")
 
+    return model, auc, importance
 
 if __name__ == "__main__":
     train_collegiate_model()

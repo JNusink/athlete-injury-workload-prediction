@@ -9,15 +9,23 @@ from sklearn.metrics import roc_auc_score, classification_report, precision_reca
 import matplotlib.pyplot as plt
 import numpy as np
 from pathlib import Path
+import json
 
 def train_and_evaluate_workload_model(
     data_path: str = "data/processed/athlete_workload_features.csv",
     model_save_path: str = "models/workload_xgb.json",
     fig_dir: str = "figures"
 ):
+    """
+    Train and evaluate a time-series workload-based injury risk model
+    using ACWR-style features and a 7-day-ahead injury label.
+    """
     print("Loading processed data...")
     df = pd.read_csv(data_path)
     df['date'] = pd.to_datetime(df['date'])
+
+    # Sort BEFORE building X, y to keep chronological split aligned
+    df = df.sort_values('date').reset_index(drop=True)
 
     # Features (no leakage)
     features = [
@@ -32,20 +40,22 @@ def train_and_evaluate_workload_model(
     y = df[target]
 
     # Chronological split (80/20)
-    df = df.sort_values('date')
     split_idx = int(len(df) * 0.8)
     X_train, X_test = X.iloc[:split_idx], X.iloc[split_idx:]
     y_train, y_test = y.iloc[:split_idx], y.iloc[split_idx:]
 
     print(f"Train: {X_train.shape}, {y_train.mean():.4f} positive")
-    print(f"Test:  {X_test.shape}, {y_test.mean():.4f} positive")
+    print(f"Test: {X_test.shape}, {y_test.mean():.4f} positive")
 
     # XGBoost with imbalance handling
+    pos = y_train.sum()
+    scale_pos_weight = (len(y_train) - pos) / pos if pos > 0 else 1
+
     model = xgb.XGBClassifier(
         objective='binary:logistic',
         eval_metric='auc',
         random_state=42,
-        scale_pos_weight = (len(y_train) - y_train.sum()) / y_train.sum() if y_train.sum() > 0 else 1,
+        scale_pos_weight=scale_pos_weight,
         max_depth=4,
         learning_rate=0.1,
         n_estimators=100
@@ -87,6 +97,7 @@ def train_and_evaluate_workload_model(
     print(f"Model saved (native): {model_save_path}")
 
     # Plot and save feature importance
+    Path(fig_dir).mkdir(exist_ok=True)
     plt.figure(figsize=(10, 6))
     importance.head(10).plot(kind='barh', x='feature', y='importance', color='skyblue')
     plt.title('Top 10 Feature Importances (XGBoost)')
@@ -97,8 +108,20 @@ def train_and_evaluate_workload_model(
     plt.close()
     print(f"Importance plot saved: {importance_plot}")
 
-    return model, auc, importance
+    # Save metrics to JSON
+    metrics = {
+        "roc_auc": float(auc),
+        "best_threshold": float(best_thresh),
+        "f1_at_best_threshold": float(f1_scores[best_idx]),
+        "test_positive_rate": float(y_test.mean())
+    }
+    Path("results").mkdir(exist_ok=True)
+    metrics_path = Path("results") / "workload_metrics.json"
+    with open(metrics_path, "w") as f:
+        json.dump(metrics, f, indent=2)
+    print(f"Metrics saved: {metrics_path}")
 
+    return model, auc, importance
 
 if __name__ == "__main__":
     train_and_evaluate_workload_model()
