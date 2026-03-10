@@ -1,25 +1,93 @@
-# 🏋️ AI Sports Injury Risk Co‑Pilot
+AI Injury Risk Co-Pilot
+=======================
 
-[![Workload AUC 0.83](figures/feature_importance.png)](figures/feature_importance.png)
+Enter daily training -> Get "train or rest" advice instantly.
 
-**Three ML models predict injury risk across time horizons for coaches and athletes.**
+Predicts injury risk in next 7 days using workload + hip mobility.
 
-| Model | Data | Test ROC‑AUC | Top Features |
-|-------|------|--------------|--------------|
-| **Workload** (7d ahead) | Daily logs (21,900 days) | **0.8312** | Acute load, ACWR, chronic load |
-| **Session** (per session) | Sensors (5,430 sessions) | **1.0000** | EMG, heart rate, ground reaction force |
-| **Profile** (baseline) | Athlete profiles (200) | **0.9732** | ACL risk score, training hours |
+What coaches see:
+Hip: 13% (CRASH) | Workload: Normal  
+-> HIGH RISK - "Light mobility only today"
 
-## Problem & Motivation
-Sports injuries cost millions in medical bills ($3.4k–$7.6k per fracture) and lost play time. [ASPE] Workload spikes (ACWR > 1.5) predict injuries 7 days ahead. [Malone 2017]
+Workload Guide (Session-RPE - Used by NFL/NBA/Soccer)
+-----------------------------------------------------
+Workload = Minutes x RPE (1-10) (Global sports science standard)
 
-**Goal**: AI co‑pilot turns training logs → actionable risk scores + suggestions.
+RPE Scale - Ask athlete post-session: "How hard was that? (1-10)"
+RPE  Feels Like        Example
+1-2  Rest             Warm-up, walking
+3-4  Easy             Light jog, skills practice
+5-6  Moderate         Normal practice pace
+7    Hard             Game intensity
+8-9  Very Hard        Sprints, heavy weights
+10   Maximal          All-out race
 
-## Quick Start
-```bash
-pip install -r requirements.txt
-python src/data_processing.py     # Process data (ACWR features)
-python src/model_workload.py      # Train all models
-python src/visualize_workload.py  # Generate plots
-# Demo
-streamlit run app.py  # Live injury risk predictions
+Real Examples (Your Data)
+Workload  Minutes  RPE  Session Type
+200       60 min   3-4  Recovery run
+400       80 min   5    Basketball practice
+600       90 min   7    Game day
+800+      100+ min 8+   Double session
+
+Your athletes average: ~350/day (moderate team sport)
+
+All Metrics Explained
+---------------------
+Input              | What measures     | Normal Range | Danger Zone
+------------------------------------------------------------
+Game Workload      | Today's stress    | 200-500      | 800+
+Sleep Hours        | Recovery quality  | 7-9 hrs      | <6 hrs
+Hip Mobility       | Hip flexibility   | 35-55%       | <25%
+Acute Load (7d)    | Last week avg     | 150-300      | 500+
+Chronic Load (28d) | Fitness base      | 140-250      | <100
+ACWR               | Acute/Chronic     | ~1.0         | >1.5
+
+Quick Start (5 minutes)
+-----------------------
+1. Install: pip install -r requirements.txt
+2. Train: python src/model_workload.py
+3. Launch: streamlit run app.py
+
+Live: http://localhost:8501
+
+How It Works (3 Steps)
+----------------------
+Daily logs -> [data_processing.py] -> 10 risk features (ACWR, hip % change)
+             -> [model_workload.py] -> XGBoost model (AUC 0.83) 
+             -> [app.py] -> "15% HIGH RISK - Active recovery"
+
+Your Innovation: Hip Safety Net
+Model misses hip crashes -> YOUR RULE forces HIGH RISK
+Hip <25% OR drops >60% -> Clinical override
+
+Performance
+-----------
+AUC: 0.83 (83% injury detection)
+ACWR spikes: 55% feature importance
+Hip crashes: Safety net catches model blind spots
+Live predictions: <1 second
+
+File Structure
+--------------
+├── app.py                 (Live predictor - Streamlit)
+├── src/
+│   ├── data_processing.py (Raw -> ML features)
+│   └── model_workload.py  (Train XGBoost)
+├── data/raw/mergedData.csv (Athlete logs)
+├── models/workload_xgb.json (Trained model)
+├── requirements.txt       (pip install -r)
+└── figures/              (Model plots)
+
+Technical Details
+-----------------
+Model: XGBoost binary classifier
+Target: injury_in_next_7d (0/1)
+Features: 10 workload + hip metrics
+Validation: Chronological 80/20 split
+Method: Session-RPE (global standard)
+
+Credits
+-------
+Jared Nusink - Built for athlete safety
+
+Star this repo! https://github.com/JNusink/athlete-injury-workload-prediction
