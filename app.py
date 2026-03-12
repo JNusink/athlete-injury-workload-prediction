@@ -13,21 +13,25 @@ st.markdown("**Enter daily data → Get risk scores + suggestions**")
 # 🔎 Simple explainer at the top
 with st.expander("ℹ️ How to read the numbers", expanded=True):
     st.markdown("""
-**Game Workload (0–1000)**  
-• Estimates how hard the whole session was (minutes × RPE 1–10).  
-• 200 = easy / recovery, 400 = normal practice, 600 = game, 800+ = brutal/double day.
+**Workout Intensity (0–1000)**  
+• Estimates how hard the whole session was (minutes × how hard it felt on a 1–10 scale).  
+• 200 = easy / recovery, 400 = normal practice, 600 = game, 800+ = very hard or double day.
 
 **Hip Mobility (0–100%)**  
-• How freely your hips can move (knee-to-chest, squat depth, stride).  
-• 70–100 = great, 40–60 = okay, 25–40 = warning, <25 = very stiff / high risk.
+• How freely your hips can move in four quick tests:  
+  1) Knee‑to‑chest while lying on your back (does the thigh get close to the chest, other leg stays flat?).  
+  2) Figure‑4 stretch lying on your back (ankle on opposite knee, does the bent knee drop toward the floor?).  
+  3) Seated 90/90 hip switch (can you switch sides smoothly without the back rounding?).  
+  4) Body‑weight squat (can you reach at least thigh‑parallel with knees tracking over toes and no big shift?).  
+• 70–100 = great, 40–60 = okay, 25–40 = warning, <25 = very stiff or painful.
 
 **Risk Score (%)**  
-• Chance of injury in the next 7 days if training continues the same.
+• Chance of any injury in the next 7 days if training keeps looking like this.
 
 **Status**  
 • LOW = train normally.  
-• MODERATE = reduce volume 15–20% and monitor.  
-• HIGH = avoid high-intensity work, focus on recovery.
+• MODERATE = reduce training amount 15–20% and monitor.  
+• HIGH = avoid high‑intensity work, focus on recovery.
 """)
 
 # Check if model exists
@@ -46,29 +50,29 @@ def load_model():
 
 model = load_model()
 
-# Sidebar inputs + RPE GUIDE
+# Sidebar inputs
 st.sidebar.header("📊 Daily Inputs")
-game_workload = st.sidebar.number_input("Game Workload (0-1000)", 0.0, 1000.0, 200.0, step=10.0)
-sleep_hours = st.sidebar.slider("Sleep Hours", 0, 12, 7)
-hip_mobility = st.sidebar.slider("Hip Mobility (0-100%)", 0, 100, 50)
+game_workload = st.sidebar.number_input("Workout Intensity Today (0–1000)", 0.0, 1000.0, 200.0, step=10.0)
+sleep_hours = st.sidebar.slider("Sleep Hours Last Night", 0, 12, 7)
+hip_mobility = st.sidebar.slider("Hip Mobility (0–100%)", 0, 100, 50)
 
 st.sidebar.header("📈 Recent Averages")
-acute_load = st.sidebar.number_input("Avg Workload Last 7 Days", 0.0, 1000.0, 150.0, step=10.0)
-chronic_load = st.sidebar.number_input("Avg Workload Last 28 Days", 0.0, 1000.0, 140.0, step=10.0)
-hip_mob_28d = st.sidebar.number_input("Avg Hip Mobility Last 28 Days", 0, 100, 55)
+acute_load = st.sidebar.number_input("Average Workout Intensity Last 7 Days", 0.0, 1000.0, 150.0, step=10.0)
+chronic_load = st.sidebar.number_input("Average Workout Intensity Last 28 Days", 0.0, 1000.0, 140.0, step=10.0)
+hip_mob_28d = st.sidebar.number_input("Average Hip Mobility Last 28 Days", 0, 100, 55)
 
-# 🔧 RPE / workload guide for non-experts
+# 🔧 Workload guide for non-experts
 st.sidebar.markdown("""
-**🔧 Workload Guide (Minutes × RPE 1–10)**
+**🔧 Workout Intensity Guide (Minutes × Effort 1–10)**
 
-| Workload | Minutes | RPE | Example |
-|----------|---------|-----|---------|
-| **200**  | ~60 min | 3–4 | Easy skills / recovery |
-| **400**  | ~80 min | 5   | Normal practice        |
-| **600**  | ~90 min | 7   | Game intensity         |
-| **800+** | 100+min | 8+  | Brutal / double day    |
+| Intensity | Minutes | Effort (1–10) | Example |
+|-----------|---------|---------------|---------|
+| **200**   | ~60 min | 3–4           | Easy skills or recovery |
+| **400**   | ~80 min | 5             | Normal practice         |
+| **600**   | ~90 min | 7             | Game‑like session       |
+| **800+**  | 100+min | 8–10          | Very hard or double day |
 
-**RPE:** 1 = rest · 5 = moderate · 10 = max effort
+**Effort scale:** 1 = resting · 5 = moderate · 10 = all‑out
 """)
 
 # Predict button
@@ -114,7 +118,7 @@ if st.button("🚨 Predict Risk", type="primary"):
         risk_prob = max(risk_prob, 0.12)
         st.warning(
             f"⚠️ **HIGH LOAD STREAK DETECTED** | "
-            f"Today: {game_workload:.0f} | 7d Avg: {acute_load:.0f} | "
+            f"Today: {game_workload:.0f} | 7‑day Avg: {acute_load:.0f} | "
             f"Risk: {prev:.1%} → {risk_prob:.1%}"
         )
 
@@ -127,33 +131,33 @@ if st.button("🚨 Predict Risk", type="primary"):
         color = "inverse" if risk_prob > 0.10 else "normal"
         st.metric("Status", status, delta=None, delta_color=color)
     with col3:
-        st.metric("ACWR", f"{acwr:.2f}")
+        st.metric("Workload Ratio (7‑day / 28‑day)", f"{acwr:.2f}")
     with col4:
-        st.metric("Hip %Δ", f"{hip_pct_change:.0f}%")
+        st.metric("Hip Change vs 28‑day Avg", f"{hip_pct_change:.0f}%")
 
     st.subheader("💡 Workout Recommendations")
 
     if risk_prob > 0.10:
         st.error("""
-        **HIGH RISK WEEK**  
-        ❌ Skip high‑intensity work  
-        ✅ Light mobility or active recovery  
-        ⚠️ Monitor sleep + soreness closely
-        """)
+**HIGH RISK WEEK**  
+❌ Skip high‑intensity work  
+✅ Light mobility or active recovery  
+⚠️ Monitor sleep and soreness closely
+""")
     elif risk_prob > 0.05:
         st.warning("""
-        **MODERATE RISK**  
-        ⚠️ Reduce volume 15–20%  
-        ✅ Extra warm‑up + cooldown  
-        👀 Watch for fatigue signals
-        """)
+**MODERATE RISK**  
+⚠️ Reduce training amount 15–20%  
+✅ Extra warm‑up and cool‑down  
+👀 Watch for fatigue signals
+""")
     else:
         st.success("""
-        **LOW RISK**  
-        ✅ Full workout OK  
-        💪 Push intensity if feeling good  
-        📊 Continue monitoring
-        """)
+**LOW RISK**  
+✅ Full workout is OK  
+💪 Increase intensity if feeling good  
+📊 Keep tracking each day
+""")
 
 st.markdown("---")
 st.caption(
